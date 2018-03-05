@@ -3,7 +3,7 @@
     "authors": [
         {
             "name": "Bruno Jacinto Parpagnoli",
-            "email": "brnjparpagnoli@hcode.com"
+            "email": "brnjparpagnoli@gmail.com"
         }
     ],
     "require": {
@@ -13,7 +13,7 @@
     },
     "autoload": {
         "psr-4": {
-            "": "vendor\\hcodebr\\php-classes\\src"
+            "Hcode\\": "vendor\\hcodebr\\php-classes\\src"
         }
     }
 }
