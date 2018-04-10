@@ -4,10 +4,15 @@ namespace Hcode\Model;
 
 use \Hcode\DB\Sql;
 use \Hcode\Model;
+use \Hcode\Mailer;
 
 class User extends Model {
 
 	const SESSION = "User";
+	// const SECRET = "HcodePhp7_Secret";
+	const TYPECYPHER = "AES-256-CBC";
+	const SECRET = "BTK8plRwzSXQvkr1";
+	const IV = "Y3B7D3FZywxykNts";
 
 	public static function login ($login, $password)
 	{
@@ -139,6 +144,116 @@ class User extends Model {
 
 		$sql->query("CALL sp_users_delete(:iduser)", array(
 			":iduser"=>$this->getiduser()
+		));
+
+	}
+
+	public static function getForgot($email)
+	{
+
+		$sql = new Sql();
+
+		$results = $sql->select("
+			SELECT * 
+			FROM tb_persons a 
+			INNER JOIN tb_users b USING(idperson)
+			WHERE a.desemail = :email;
+			", array(
+				"email"=>$email
+			));
+
+		if(count($results) === 0 )
+		{
+			throw new \Exception("Could not retrieve password request.");
+			
+		}
+		else
+		{
+
+			$data = $results[0];
+
+			$results2 = $sql->select("CALL sp_userspasswordsrecoveries_create(:iduser, :desip)", array (
+				":iduser"=>$data["iduser"],
+				":desip"=>$_SERVER["REMOTE_ADDR"]
+			));
+
+			if(count($results2) === 0)
+			{
+				throw new \Exception("Could not retrieve password request.");
+				
+			}
+			else
+			{
+
+				$dataRecovery = $results2[0];
+				//$ciphertext = openssl_encrypt($plaintext, $cipher, $key, $options=0, $iv, $tag);
+				
+				$code = base64_encode(openssl_encrypt($dataRecovery["idrecovery"], User::TYPECYPHER, User::SECRET,$options = 0, 
+					$iv = User::IV));
+				$link = "www.hcodecommerce.com.br/admin/forgot/reset?code=$code";
+		
+				$mailer = new Mailer($data["desemail"], $data["desperson"], "Redefinir Senha do Sistema", "forgot", 
+					array(
+					"name"=>$data["desperson"],
+					"link"=>$link
+					));
+				$mailer->send();
+				return $data;
+
+			}
+
+		}
+
+	}
+
+	public static function validForgotDecrypt($code)
+	{
+		$idrecovery = openssl_decrypt(base64_decode($code), User::TYPECYPHER, User::SECRET, $options=0, $iv = User::IV);
+		
+		$sql = new Sql();
+
+		$results = $sql->select("
+			SELECT *
+			FROM tb_userspasswordsrecoveries a
+			inner join tb_users b using(iduser)
+			inner join tb_persons c using(idperson)
+			where (1=1)
+			and a.idrecovery = :idrecovery
+			and a.dtrecovery is NULL
+			and DATE_ADD(a.dtregister, INTERVAL 1 HOUR) >= NOW();
+			", array(
+				":idrecovery"=>$idrecovery
+			));
+		if (count($results) === 0) 
+		{
+			throw new \Exception("Error retrieving new password.");
+			
+		}
+		else
+		{
+			return $results[0];
+		}
+	}
+
+	public static function setForgotUsed($idrecovery)
+	{
+
+		$sql = new Sql();
+
+		$sql->query("UPDATE tb_userspasswordsrecoveries SET dtrecovery = NOW() WHERE idrecovery = :idrecovery", array(
+			":idrecovery"=>$idrecovery
+		));
+
+	}
+
+	public function setPassword($password)
+	{
+
+		$sql = new Sql();
+
+		$sql->query("UPDATE tb_users SET despassword = :password WHERE iduser = :iduser", array(
+			":password"=>$password,
+			"iduser"=>$this->getiduser()
 		));
 
 	}
